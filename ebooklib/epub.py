@@ -255,6 +255,10 @@ class EpubHtml(EpubItem):
             _title = etree.SubElement(_head, 'title')
             _title.text = self.title
 
+        opts = {'name': 'viewport',
+                'content': 'width=%d, height=%d' % (self.img_width, self.img_height)}
+        _meta = etree.SubElement(_head, 'meta', opts)
+
         for lnk in self.links:
             if lnk.get("type") == "text/javascript":
                 _lnk = etree.SubElement(_head, 'script', lnk)
@@ -415,8 +419,13 @@ class EpubBook(object):
         if create_page:
             c1 = EpubCoverHtml(image_name=file_name)
             self.add_item(c1)
+            ret = c1
+        else:
+            ret = None
 
         self.add_metadata(None, 'meta', '', {'name': 'cover', 'content': 'cover-img'})
+
+        if ret: return ret
 
     def add_author(self, author, file_as=None, role=None, uid='creator'):
         "Add author for this document"
@@ -695,6 +704,9 @@ class EpubWriter(object):
                         opts['linear'] = 'no'
                 except:
                     pass
+
+            if hasattr(item, 'properties') and len(item.properties) > 0:
+                opts['properties'] = ' '.join(item.properties)
 
             etree.SubElement(spine, 'itemref', opts)
 
