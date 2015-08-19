@@ -741,6 +741,14 @@ class EpubWriter(object):
 
         self.out.writestr('%s/content.opf' % self.book.FOLDER_NAME, tree_str)
 
+    def _get_toc_title(self, item):
+        if hasattr(item, 'toc_title') :
+            toc_title = item.toc_title.pop(0)
+            item.toc_title.append(toc_title)
+        else :
+            toc_title = item.title
+        return toc_title
+
     def _get_nav(self, item):
         # just a basic navigation for now
         ncx = parse_string(self.book.get_template('nav'))
@@ -772,18 +780,18 @@ class EpubWriter(object):
                         a = etree.SubElement(li, 'a', {'href': item[0].file_name})
                     else:
                         a = etree.SubElement(li, 'span')
-                    a.text = item[0].title
+                    a.text = self._get_toc_title(item[0])
 
                     _create_section(li, item[1])
 
                 elif isinstance(item, Link):
                     li = etree.SubElement(ol, 'li')
                     a = etree.SubElement(li, 'a', {'href': item.href})
-                    a.text = item.title
+                    a.text = self._get_toc_title(item)
                 elif isinstance(item, EpubHtml):
                     li = etree.SubElement(ol, 'li')
                     a = etree.SubElement(li, 'a', {'href': item.file_name})
-                    a.text = item.title
+                    a.text = self._get_toc_title(item)
 
         _create_section(nav, self.book.toc)
 
@@ -858,7 +866,7 @@ class EpubWriter(object):
                     np = etree.SubElement(itm, 'navPoint', {'id': section.get_id() if isinstance(section, EpubHtml) else 'sep_%d' % uid})
                     nl = etree.SubElement(np, 'navLabel')
                     nt = etree.SubElement(nl, 'text')
-                    nt.text = section.title
+                    nt.text = self._get_toc_title(section)
 
                     # CAN NOT HAVE EMPTY SRC HERE
                     nc = etree.SubElement(np, 'content', {'src': section.file_name if isinstance(section, EpubHtml) else ''})
@@ -877,7 +885,7 @@ class EpubWriter(object):
                     np = etree.SubElement(itm, 'navPoint', {'id': item.uid})
                     nl = etree.SubElement(np, 'navLabel')
                     nt = etree.SubElement(nl, 'text')
-                    nt.text = item.title
+                    nt.text = self._get_toc_title(item)
 
                     nc = etree.SubElement(np, 'content', {'src': item.href})
 
@@ -892,7 +900,7 @@ class EpubWriter(object):
                     np = etree.SubElement(itm, 'navPoint', {'id': item.get_id()})
                     nl = etree.SubElement(np, 'navLabel')
                     nt = etree.SubElement(nl, 'text')
-                    nt.text = item.title
+                    nt.text = self._get_toc_title(item)
 
                     nc = etree.SubElement(np, 'content', {'src': item.file_name})
 
