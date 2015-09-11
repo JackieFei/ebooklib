@@ -175,7 +175,8 @@ class EpubHtml(EpubItem):
         self.lang = lang
 
         self.links = []
-        self.properties = []
+        self.item_properties = []
+        self.itemref_properties = []
 
     def is_chapter(self):
         return True
@@ -363,7 +364,7 @@ class EpubBook(object):
         self.bindings = []
 
         self.IDENTIFIER_ID = 'id'
-        self.FOLDER_NAME = 'EPUB'
+        self.FOLDER_NAME = 'OEBPS'
 
         self._id_html = 0
         self._id_image = 0
@@ -577,8 +578,10 @@ class EpubWriter(object):
                               'unique-identifier': self.book.IDENTIFIER_ID,
                               'version': '3.0'})
 
-        prefixes = ['rendition: http://www.idpf.org/vocab/rendition/#'] + self.book.prefixes
-        root.attrib['prefix'] = ' '.join(prefixes)
+        # 驗證工具認為：Re-declaration of reserved prefix 'rendition'.
+        # 依據 http://www.idpf.org/epub/renditions/multiple/ : "the prefix attribute may be attached only to the root metadata element."
+        # prefixes = ['rendition: http://www.idpf.org/vocab/rendition/#'] + self.book.prefixes
+        # root.attrib['prefix'] = ' '.join(prefixes)
 
         ## METADATA
         nsmap = {'dc': NAMESPACES['DC'], 'opf': NAMESPACES['OPF']}
@@ -661,8 +664,10 @@ class EpubWriter(object):
                         'id': item.id,
                         'media-type': item.media_type}
 
-                if hasattr(item, 'properties') and len(item.properties) > 0:
-                    opts['properties'] = ' '.join(item.properties)
+                # 驗證工具認為：Undefined property: 'page-spread-left'. 'page-spread-right'.
+                # rendition 的屬性只能設在 spine/itemref，不能設在 manifest/item。所以程式應該分離 item.properties 為二種
+                if hasattr(item, 'item_properties') and len(item.item_properties) > 0:
+                    opts['properties'] = ' '.join(item.item_properties)
 
                 etree.SubElement(manifest, 'item', opts)
 
@@ -708,8 +713,8 @@ class EpubWriter(object):
                 except:
                     pass
 
-            if hasattr(item, 'properties') and len(item.properties) > 0:
-                opts['properties'] = ' '.join(item.properties)
+            if hasattr(item, 'itemref_properties') and len(item.itemref_properties) > 0:
+                opts['properties'] = ' '.join(item.itemref_properties)
 
             etree.SubElement(spine, 'itemref', opts)
 
@@ -859,6 +864,12 @@ class EpubWriter(object):
         nav_map = etree.SubElement(root, 'navMap')
 
         def _create_section(itm, items, uid):
+            # 驗證工具認為：Error while parsing file 'element "navMap" incomplete; missing required element "navPoint"'.
+            # 如果放入空的 navPoint，驗證工具會出現索取更多屬性的錯誤訊息，所以暫時不解
+            # 有人認為是 epubcheck 的 bug : http://docbook-apps.oasis-open.narkive.com/8Oktml6O/epub2-vs-epub3-making-base-dir-consistent
+            #if len(items) == 0 :
+            #    np = etree.SubElement(itm, 'navPoint', {})
+
             for item in items:
                 if isinstance(item, tuple) or isinstance(item, list):
                     section, subsection = item[0], item[1]
