@@ -20,6 +20,7 @@ import mimetypes
 import logging
 import uuid
 import posixpath as zip_path
+import random
 
 try:
     from urllib.parse import unquote
@@ -863,18 +864,16 @@ class EpubWriter(object):
         # For now just make a very simple navMap
         nav_map = etree.SubElement(root, 'navMap')
 
-        def _create_section(itm, items, uid):
-            # 驗證工具認為：Error while parsing file 'element "navMap" incomplete; missing required element "navPoint"'.
-            # 如果放入空的 navPoint，驗證工具會出現索取更多屬性的錯誤訊息，所以暫時不解
-            # 有人認為是 epubcheck 的 bug : http://docbook-apps.oasis-open.narkive.com/8Oktml6O/epub2-vs-epub3-making-base-dir-consistent
-            #if len(items) == 0 :
-            #    np = etree.SubElement(itm, 'navPoint', {})
+        def _gen_navPoint_uid(id) :
+            # 驗證工具認為：Error while parsing file 'The "id" attribute does not have a unique value'.
+            return id + ".%04d" % (random.randint(1, 9999))
 
+        def _create_section(itm, items, uid):
             for item in items:
                 if isinstance(item, tuple) or isinstance(item, list):
                     section, subsection = item[0], item[1]
 
-                    np = etree.SubElement(itm, 'navPoint', {'id': section.get_id() if isinstance(section, EpubHtml) else 'sep_%d' % uid})
+                    np = etree.SubElement(itm, 'navPoint', {'id': _gen_navPoint_uid(section.get_id()) if isinstance(section, EpubHtml) else _gen_navPoint_uid('sep_%d' % uid)})
                     nl = etree.SubElement(np, 'navLabel')
                     nt = etree.SubElement(nl, 'text')
                     nt.text = self._get_toc_title(section)
@@ -893,7 +892,7 @@ class EpubWriter(object):
                         if _content.get('src') == '':
                             _content.set('src', item.href)
 
-                    np = etree.SubElement(itm, 'navPoint', {'id': item.uid})
+                    np = etree.SubElement(itm, 'navPoint', {'id': _gen_navPoint_uid(item.uid)})
                     nl = etree.SubElement(np, 'navLabel')
                     nt = etree.SubElement(nl, 'text')
                     nt.text = self._get_toc_title(item)
@@ -908,7 +907,7 @@ class EpubWriter(object):
                         if _content.get('src') == '':
                             _content.set('src', item.file_name)
 
-                    np = etree.SubElement(itm, 'navPoint', {'id': item.get_id()})
+                    np = etree.SubElement(itm, 'navPoint', {'id': _gen_navPoint_uid(item.get_id())})
                     nl = etree.SubElement(np, 'navLabel')
                     nt = etree.SubElement(nl, 'text')
                     nt.text = self._get_toc_title(item)
