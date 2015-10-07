@@ -583,6 +583,8 @@ class EpubWriter(object):
         # 依據 http://www.idpf.org/epub/renditions/multiple/ : "the prefix attribute may be attached only to the root metadata element."
         # prefixes = ['rendition: http://www.idpf.org/vocab/rendition/#'] + self.book.prefixes
         # root.attrib['prefix'] = ' '.join(prefixes)
+        if len(self.book.prefixes) :
+            root.attrib['prefix'] = ' '.join(self.book.prefixes)
 
         ## METADATA
         nsmap = {'dc': NAMESPACES['DC'], 'opf': NAMESPACES['OPF']}
