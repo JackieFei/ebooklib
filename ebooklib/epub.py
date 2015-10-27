@@ -257,9 +257,10 @@ class EpubHtml(EpubItem):
             _title = etree.SubElement(_head, 'title')
             _title.text = self.title
 
-        opts = {'name': 'viewport',
-                'content': 'width=%d, height=%d' % (self.img_width, self.img_height)}
-        _meta = etree.SubElement(_head, 'meta', opts)
+        if hasattr(self, 'img_width') and hasattr(self, 'img_height') :
+            opts = {'name': 'viewport',
+                    'content': 'width=%d, height=%d' % (self.img_width, self.img_height)}
+            _meta = etree.SubElement(_head, 'meta', opts)
 
         for lnk in self.links:
             if lnk.get("type") == "text/javascript":
