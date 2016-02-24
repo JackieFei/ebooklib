@@ -262,6 +262,11 @@ class EpubHtml(EpubItem):
                     'content': 'width=%d, height=%d' % (self.img_width, self.img_height)}
             _meta = etree.SubElement(_head, 'meta', opts)
 
+        if hasattr(self, 'description') :
+            opts = {'name': 'description',
+                    'content': '%s' % (self.description)}
+            _meta = etree.SubElement(_head, 'meta', opts)
+
         for lnk in self.links:
             if lnk.get("type") == "text/javascript":
                 _lnk = etree.SubElement(_head, 'script', lnk)
