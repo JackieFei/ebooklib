@@ -276,12 +276,13 @@ class EpubHtml(EpubItem):
                 _lnk = etree.SubElement(_head, 'link', lnk)
 
         # this should not be like this
-        # head = html_root.find('head')
-        # if head is not None:
-        #     for i in head.getchildren():
-        #         if i.tag == 'title' and self.title != '':
-        #             continue
-        #         _head.append(i)
+        # Append original head children (except title) https://github.com/aerkalov/ebooklib/pull/77
+        head = html_root.find('head')
+        if head is not None:
+            for i in head.getchildren():
+                if i.tag == 'title' and self.title != '':
+                    continue
+                _head.append(i)
 
         # create and populate body
 
@@ -620,6 +621,9 @@ class EpubWriter(object):
             if ns_name == NAMESPACES['OPF']:
                 for values in values.values():
                     for v in values:
+                        # Ensure only new modified date is included. https://github.com/aerkalov/ebooklib/pull/80
+                        if 'property' in v[1] and v[1]['property'] == "dcterms:modified":
+                            continue
                         try:
                             el = etree.SubElement(metadata, 'meta', v[1])
                             if v[0]:
