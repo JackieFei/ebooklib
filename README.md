@@ -42,7 +42,7 @@ Writing
 
     # create chapter
     c1 = epub.EpubHtml(title='Intro', file_name='chap_01.xhtml', lang='hr')
-    c1.content=u'<h1>Intro heading</h1><p>Žaba je skočila u baru.</p>'
+    c1.content=u'<h1>Intro heading</h1><p>Zaba je skocila u baru.</p>'
 
     # add chapter
     book.add_item(c1)
@@ -80,9 +80,5 @@ EbookLib is licensed under the AGPL license.
 
 Authors
 =======
-* Aleksandar Erkalovic <aerkalov@gmail.com>
-* Borko Jandras <bjandras@gmail.com>
 
-
-
-
+Full list of authors is in AUTHORS.txt file.

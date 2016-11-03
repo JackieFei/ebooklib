@@ -21,6 +21,7 @@ import logging
 import uuid
 import posixpath as zip_path
 import random
+import os.path
 
 try:
     from urllib.parse import unquote
@@ -62,14 +63,14 @@ CONTAINER_XML = '''<?xml version='1.0' encoding='utf-8'?>
 </container>
 '''
 
-NCX_XML = '''<!DOCTYPE ncx PUBLIC "-//NISO//DTD ncx 2005-1//EN" "http://www.daisy.org/z3986/2005/ncx-2005-1.dtd">
-<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1" />'''
+NCX_XML = six.b('''<!DOCTYPE ncx PUBLIC "-//NISO//DTD ncx 2005-1//EN" "http://www.daisy.org/z3986/2005/ncx-2005-1.dtd">
+<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1" />''')
 
-NAV_XML = '''<?xml version="1.0" encoding="utf-8"?><!DOCTYPE html><html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"/>'''
+NAV_XML = six.b('''<?xml version="1.0" encoding="utf-8"?><!DOCTYPE html><html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"/>''')
 
-CHAPTER_XML = '''<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html><html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"  epub:prefix="z3998: http://www.daisy.org/z3998/2012/vocab/structure/#"></html>'''
+CHAPTER_XML = six.b('''<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html><html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"  epub:prefix="z3998: http://www.daisy.org/z3998/2012/vocab/structure/#"></html>''')
 
-COVER_XML = '''<?xml version="1.0" encoding="UTF-8"?>
+COVER_XML = six.b('''<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE html>
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" lang="en" xml:lang="en">
  <head>
@@ -81,17 +82,19 @@ COVER_XML = '''<?xml version="1.0" encoding="UTF-8"?>
  <body>
    <img src="" alt="" />
  </body>
-</html>'''
+</html>''')
 
 
 IMAGE_MEDIA_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/svg+xml']
 
 
-## TOC elements
+# TOC elements
 
 class Section(object):
-    def __init__(self, title):
+    def __init__(self, title, href=''):
         self.title = title
+        self.href = href
+
 
 class Link(object):
     def __init__(self, href, title, uid=None):
@@ -99,7 +102,8 @@ class Link(object):
         self.title = title
         self.uid = uid
 
-## Exceptions
+# Exceptions
+
 
 class EpubException(Exception):
     def __init__(self, code, msg):
@@ -109,10 +113,23 @@ class EpubException(Exception):
     def __str__(self):
         return repr(self.msg)
 
-## Items
+# Items
+
 
 class EpubItem(object):
-    def __init__(self, uid=None, file_name='', media_type='', content='', manifest=True):
+    """
+    Base class for the items in a book.
+    """
+
+    def __init__(self, uid=None, file_name='', media_type='', content=six.b(''), manifest=True):
+        """
+        :Args:
+          - uid: Unique identifier for this item (optional)
+          - file_name: File name for this item (optional)
+          - media_type: Media type for this item (optional)
+          - content: Content for this item (optional)
+          - manifest: Manifest for this item (optional)
+        """
         self.id = uid
         self.file_name = file_name
         self.media_type = media_type
@@ -123,14 +140,43 @@ class EpubItem(object):
         self.book = None
 
     def get_id(self):
+        """
+        Returns unique identifier for this item.
+
+        :Returns:
+          Returns uid number as string.
+        """
         return self.id
 
     def get_name(self):
+        """
+        Returns name for this item. By default it is always file name but it does not have to be.
+
+        :Returns:
+          Returns file name for this item.
+        """
         return self.file_name
 
     def get_type(self):
         """
-        Guess type according to the file extension. Not the best way to do it, but works for now.
+        Guess type according to the file extension. Might not be the best way how to do it, but it works for now.
+
+        Items can be of type:
+          - ITEM_UNKNOWN = 0
+          - ITEM_IMAGE = 1
+          - ITEM_STYLE = 2
+          - ITEM_SCRIPT = 3
+          - ITEM_NAVIGATION = 4
+          - ITEM_VECTOR = 5
+          - ITEM_FONT = 6
+          - ITEM_VIDEO = 7
+          - ITEM_AUDIO = 8
+          - ITEM_DOCUMENT = 9
+
+        We map type according to the extensions which are defined in ebooklib.EXTENSIONS.
+
+        :Returns:
+          Returns type of the item as number.
         """
         _, ext = zip_path.splitext(self.get_name())
         ext = ext.lower()
@@ -141,16 +187,34 @@ class EpubItem(object):
 
         return ebooklib.ITEM_UNKNOWN
 
-    def get_content(self, default=''):
+    def get_content(self, default=six.b('')):
+        """
+        Returns content of the item. Content should be of type 'str' (Python 2) or 'bytes' (Python 3)
+
+        :Args:
+          - default: Default value for the content if it is not already defined.
+
+        :Returns:
+          Returns content of the item.
+        """
         return self.content or default
 
     def set_content(self, content):
+        """
+        Sets content value for this item.
+
+        :Args:
+          - content: Content value
+        """
         self.content = content
 
     def __str__(self):
         return '<EpubItem:%s>' % self.id
 
+
 class EpubNcx(EpubItem):
+    "Represents Navigation Control File (NCX) in the EPUB."
+
     def __init__(self, uid='ncx', file_name='toc.ncx'):
         super(EpubNcx, self).__init__(uid=uid, file_name=file_name, media_type="application/x-dtbncx+xml")
 
@@ -159,6 +223,10 @@ class EpubNcx(EpubItem):
 
 
 class EpubCover(EpubItem):
+    """
+    Represents Cover image in the EPUB file.
+    """
+
     def __init__(self, uid='cover-img', file_name=''):
         super(EpubCover, self).__init__(uid=uid, file_name=file_name)
 
@@ -167,6 +235,9 @@ class EpubCover(EpubItem):
 
 
 class EpubHtml(EpubItem):
+    """
+    Represents HTML document in the EPUB file.
+    """
     _template_name = 'chapter'
 
     def __init__(self, uid=None, file_name='', media_type='', content=None, title='', lang=None):
@@ -180,27 +251,74 @@ class EpubHtml(EpubItem):
         self.itemref_properties = []
 
     def is_chapter(self):
+        """
+        Returns if this document is chapter or not.
+
+        :Returns:
+          Returns book value.
+        """
         return True
 
     def get_type(self):
+        """
+        Always returns ebooklib.ITEM_DOCUMENT as type of this document.
+
+        :Returns:
+          Always returns ebooklib.ITEM_DOCUMENT
+        """
+
         return ebooklib.ITEM_DOCUMENT
 
     def set_language(self, lang):
+        """
+        Sets language for this book item. By default it will use language of the book but it
+        can be overwritten with this call.
+        """
         self.lang = lang
 
     def get_language(self):
+        """
+        Get language code for this book item. Language of the book item can be different from
+        the language settings defined globaly for book.
+
+        :Returns:
+          As string returns language code.
+        """
         return self.lang
 
     def add_link(self, **kwgs):
+        """
+        Add additional link to the document. Links will be embeded only inside of this document.
+
+        >>> add_link(href='styles.css', rel='stylesheet', type='text/css')
+        """
         self.links.append(kwgs)
 
     def get_links(self):
+        """
+        Returns list of additional links defined for this document.
+
+        :Returns:
+          As tuple return list of links.
+        """
         return (link for link in self.links)
 
     def get_links_of_type(self, link_type):
+        """
+        Returns list of additional links of specific type.
+
+        :Returns:
+          As tuple returns list of links.
+        """
         return (link for link in self.links if link.get('type', '') == link_type)
 
     def add_item(self, item):
+        """
+        Add other item to this document. It will create additional links according to the item type.
+
+        :Args:
+          - item: item we want to add defined as instance of EpubItem
+        """
         if item.get_type() == ebooklib.ITEM_STYLE:
             self.add_link(href=item.get_name(), rel="stylesheet", type="text/css")
 
@@ -208,6 +326,12 @@ class EpubHtml(EpubItem):
             self.add_link(src=item.get_name(), type="text/javascript")
 
     def get_body_content(self):
+        """
+        Returns content of BODY element for this HTML document. Content will be of type 'str' (Python 2) or 'bytes' (Python 3).
+
+        :Returns:
+          Returns content of this document.
+        """
         content = self.get_content()
 
         try:
@@ -221,9 +345,10 @@ class EpubHtml(EpubItem):
             body = html_tree.find('body')
 
             tree_str = etree.tostring(body, pretty_print=True, encoding='utf-8', xml_declaration=False)
+
             # this is so stupid
-            if tree_str.startswith('<body>'):
-                n = tree_str.rindex('</body>')
+            if tree_str.startswith(six.b('<body>')):
+                n = tree_str.rindex(six.b('</body>'))
 
                 return tree_str[7:n]
 
@@ -231,8 +356,17 @@ class EpubHtml(EpubItem):
 
         return ''
 
-
     def get_content(self, default=None):
+        """
+        Returns content for this document as HTML string. Content will be of type 'str' (Python 2) or 'bytes' (Python 3).
+
+        :Args:
+          - default: Default value for the content if it is not defined.
+
+        :Returns:
+          Returns content of this document.
+        """
+
         tree = parse_string(self.book.get_template(self._template_name))
         tree_root = tree.getroot()
 
@@ -302,6 +436,10 @@ class EpubHtml(EpubItem):
 
 
 class EpubCoverHtml(EpubHtml):
+    """
+    Represents Cover page in the EPUB file.
+    """
+
     def __init__(self, uid='cover', file_name='cover.xhtml', image_name='', title='Cover'):
         super(EpubCoverHtml, self).__init__(uid=uid, file_name=file_name, title=title)
 
@@ -309,9 +447,23 @@ class EpubCoverHtml(EpubHtml):
         self.is_linear = False
 
     def is_chapter(self):
+        """
+        Returns if this document is chapter or not.
+
+        :Returns:
+          Returns book value.
+        """
+
         return False
 
     def get_content(self):
+        """
+        Returns content for cover page as HTML string. Content will be of type 'str' (Python 2) or 'bytes' (Python 3).
+
+        :Returns:
+          Returns content of this document.
+        """
+
         self.content = self.book.get_template('cover')
 
         tree = parse_string(super(EpubCoverHtml, self).get_content())
@@ -329,11 +481,23 @@ class EpubCoverHtml(EpubHtml):
     def __str__(self):
         return '<EpubCoverHtml:%s:%s>' % (self.id, self.file_name)
 
+
 class EpubNav(EpubHtml):
+    """
+    Represents Navigation Document in the EPUB file.
+    """
+
     def __init__(self, uid='nav', file_name='nav.xhtml', media_type="application/xhtml+xml"):
         super(EpubNav, self).__init__(uid=uid, file_name=file_name, media_type=media_type)
 
     def is_chapter(self):
+        """
+        Returns if this document is chapter or not.
+
+        :Returns:
+          Returns book value.
+        """
+
         return False
 
     def __str__(self):
@@ -341,6 +505,10 @@ class EpubNav(EpubHtml):
 
 
 class EpubImage(EpubItem):
+    """
+    Represents Image in the EPUB file.
+    """
+
     def __init__(self):
         super(EpubImage, self).__init__()
 
@@ -351,7 +519,7 @@ class EpubImage(EpubItem):
         return '<EpubImage:%s:%s>' % (self.id, self.file_name)
 
 
-## EpubBook
+# EpubBook
 
 class EpubBook(object):
     def __init__(self):
@@ -368,7 +536,7 @@ class EpubBook(object):
         self.items = []
         self.spine = []
         self.guide = []
-        self.toc   = []
+        self.toc = []
         self.bindings = []
 
         self.IDENTIFIER_ID = 'id'
@@ -381,10 +549,12 @@ class EpubBook(object):
         self.title = ''
         self.language = 'en'
 
-        self.templates = {'ncx': NCX_XML,
-                          'nav': NAV_XML,
-                          'chapter': CHAPTER_XML,
-                          'cover': COVER_XML}
+        self.templates = {
+            'ncx': NCX_XML,
+            'nav': NAV_XML,
+            'chapter': CHAPTER_XML,
+            'cover': COVER_XML
+        }
 
         self.add_metadata('OPF', 'generator', '', {'name': 'generator', 'content': 'Ebook-lib %s' % '.'.join([str(s) for s in VERSION])})
 
@@ -395,30 +565,52 @@ class EpubBook(object):
         self.prefixes = []
         self.namespaces = {}
 
-
     def set_identifier(self, uid):
-        "Sets unique id for this epub"
+        """
+        Sets unique id for this epub
+
+        :Args:
+          - uid: Value of unique identifier for this book
+        """
 
         self.uid = uid
 
         self.set_unique_metadata('DC', 'identifier', self.uid, {'id': self.IDENTIFIER_ID})
 
     def set_title(self, title):
-        "Set title. You can set multiple titles."
+        """
+        Set title. You can set multiple titles.
+
+        :Args:
+          - title: Title value
+        """
 
         self.title = title
 
         self.add_metadata('DC', 'title', self.title)
 
     def set_language(self, lang):
-        "Set language for this epub. You can set multiple languages."
+        """
+        Set language for this epub. You can set multiple languages. Specific items in the book can have
+        different language settings.
+
+        :Args:
+          - lang: Language code
+        """
 
         self.language = lang
 
         self.add_metadata('DC', 'language', lang)
 
     def set_cover(self, file_name, content, create_page=True):
-        "Set cover and create cover document if needed."
+        """
+        Set cover and create cover document if needed.
+
+        :Args:
+          - file_name: file name of the cover page
+          - content: Content for the cover image
+          - create_page: Should cover page be defined. Defined as bool value (optional). Default value is True.
+        """
 
         # as it is now, it can only be called once
         c0 = EpubCover(file_name=file_name)
@@ -442,15 +634,15 @@ class EpubBook(object):
         self.add_metadata('DC', 'creator', author, {'id': uid})
 
         if file_as:
-            self.add_metadata(None, 'meta', file_as, {'refines': '#'+uid,
-                                                    'property': 'file-as',
-                                                    'scheme': 'marc:relators'})
+            self.add_metadata(None, 'meta', file_as, {'refines': '#' + uid,
+                                                      'property': 'file-as',
+                                                      'scheme': 'marc:relators'})
         if role:
-            self.add_metadata(None, 'meta', role, {'refines': '#'+uid,
-                                                 'property': 'role',
-                                                 'scheme': 'marc:relators'})
+            self.add_metadata(None, 'meta', role, {'refines': '#' + uid,
+                                                   'property': 'role',
+                                                   'scheme': 'marc:relators'})
 
-    def add_metadata(self, namespace, name, value, others = None):
+    def add_metadata(self, namespace, name, value, others=None):
         "Add metadata"
 
         if namespace in NAMESPACES:
@@ -462,7 +654,7 @@ class EpubBook(object):
         if name not in self.metadata[namespace]:
             self.metadata[namespace][name] = []
 
-        self.metadata[namespace][name].append(( value, others))
+        self.metadata[namespace][name].append((value, others))
 
     def get_metadata(self, namespace, name):
         "Retrieve metadata"
@@ -472,7 +664,7 @@ class EpubBook(object):
 
         return self.metadata[namespace][name]
 
-    def set_unique_metadata(self, namespace, name, value, others = None):
+    def set_unique_metadata(self, namespace, name, value, others=None):
         "Add metadata if metadata with this identifier does not already exist, otherwise update existing metadata."
 
         if namespace in NAMESPACES:
@@ -484,6 +676,13 @@ class EpubBook(object):
             self.add_metadata(namespace, name, value, others)
 
     def add_item(self, item):
+        """
+        Add additional item to the book. If not defined, media type and chapter id will be defined
+        for the item.
+
+        :Args:
+          - item: Item instance
+        """
         if item.media_type == '':
             (has_guessed, media_type) = mimetypes.guess_type(item.get_name().lower())
 
@@ -513,6 +712,17 @@ class EpubBook(object):
         return item
 
     def get_item_with_id(self, uid):
+        """
+        Returns item for defined UID.
+
+        >>> book.get_item_with_id('image_001')
+
+        :Args:
+          - uid: UID for the item
+
+        :Returns:
+          Returns item object. Returns None if nothing was found.
+        """
         for item in self.get_items():
             if item.id == uid:
                 return item
@@ -520,6 +730,17 @@ class EpubBook(object):
         return None
 
     def get_item_with_href(self, href):
+        """
+        Returns item for defined HREF.
+
+        >>> book.get_item_with_href('EPUB/document.xhtml')
+
+        :Args:
+          - href: HREF for the item we are searching for
+
+        :Returns:
+          Returns item object. Returns None if nothing was found.
+        """
         for item in self.get_items():
             if item.get_name() == href:
                 return item
@@ -527,34 +748,90 @@ class EpubBook(object):
         return None
 
     def get_items(self):
+        """
+        Returns all items attached to this book.
+
+        :Returns:
+          Returns all items as tuple.
+        """
         return (item for item in self.items)
 
     def get_items_of_type(self, item_type):
+        """
+        Returns all items of specified type.
+
+        >>> book.get_items_of_type(epub.ITEM_IMAGE)
+
+        :Args:
+          - item_type: Type for items we are searching for
+
+        :Returns:
+          Returns found items as tuple.
+        """
         return (item for item in self.items if item.get_type() == item_type)
 
     def get_items_of_media_type(self, media_type):
+        """
+        Returns all items of specified media type.
+
+        :Args:
+          - media_type: Media type for items we are searching for
+
+        :Returns:
+          Returns found items as tuple.
+        """
         return (item for item in self.items if item.media_type == media_type)
 
     def set_template(self, name, value):
+        """
+        Defines templates which are used to generate certain types of pages. When defining new value for the template
+        we have to use content of type 'str' (Python 2) or 'bytes' (Python 3).
+
+        At the moment we use these templates:
+          - ncx
+          - nav
+          - chapter
+          - cover
+
+        :Args:
+          - name: Name for the template
+          - value: Content for the template
+        """
+
         self.templates[name] = value
 
     def get_template(self, name):
+        """
+        Returns value for the template.
+
+        :Args:
+          - name: template name
+
+        :Returns:
+          Value of the template.
+        """
         return self.templates.get(name)
 
     def add_prefix(self, name, uri):
-        """Appends custom prefix to be added to the content.opf document"""
+        """
+        Appends custom prefix to be added to the content.opf document
+
+        >>> epub_book.add_prefix('bkterms', 'http://booktype.org/')
+
+        :Args:
+          - name: namespave name
+          - uri: URI for the namespace
+        """
 
         self.prefixes.append('%s: %s' % (name, uri))
 
 
-
-###########################################################################################################
-
 class EpubWriter(object):
-    DEFAULT_OPTIONS = {'epub2_guide': True,
-                       'epub3_landmark': True,
-                       'landmark_title': 'Guide'
-                      }
+    DEFAULT_OPTIONS = {
+        'epub2_guide': True,
+        'epub3_landmark': True,
+        'landmark_title': 'Guide'
+    }
 
     def __init__(self, name, book, options=None):
         self.file_name = name
@@ -593,20 +870,17 @@ class EpubWriter(object):
         if len(self.book.prefixes) :
             root.attrib['prefix'] = ' '.join(self.book.prefixes)
 
-        ## METADATA
+        # METADATA
         nsmap = {'dc': NAMESPACES['DC'], 'opf': NAMESPACES['OPF']}
         nsmap.update(self.book.namespaces)
 
-
         # This is really not needed
         # problem is uppercase/lowercase
-
         # for ns_name, values in six.iteritems(self.book.metadata):
         #     if ns_name:
         #         for n_id, ns_url in six.iteritems(NAMESPACES):
         #             if ns_name == ns_url:
         #                 nsmap[n_id.lower()] = NAMESPACES[n_id]
-
         metadata = etree.SubElement(root, 'metadata', nsmap=nsmap)
 
         el = etree.SubElement(metadata, 'meta', {'property': 'dcterms:modified'})
@@ -642,7 +916,6 @@ class EpubWriter(object):
                             el.text = v[0]
                         except ValueError:
                             logging.error('Could not create metadata "{}".'.format(name))
-
 
         # MANIFEST
         manifest = etree.SubElement(root, 'manifest')
@@ -747,6 +1020,8 @@ class EpubWriter(object):
                     _href = item.get('href', '')
                     _title = item.get('title', '')
 
+                if _title is None:
+                    _title = ''
                 ref = etree.SubElement(guide, 'reference', {'type': item.get('type', ''),
                                                             'title': _title,
                                                             'href': _href})
@@ -775,13 +1050,15 @@ class EpubWriter(object):
         root.set('lang', self.book.language)
         root.attrib['{%s}lang' % NAMESPACES['XML']] = self.book.language
 
+        nav_dir_name = os.path.dirname(item.file_name)
+
         head = etree.SubElement(root, 'head')
         title = etree.SubElement(head, 'title')
         title.text = self.book.title
 
         # for now this just handles css files and ignores others
         for _link in item.links:
-            _lnk = etree.SubElement(head, 'link', {"href":_link.get('href', ''), "rel": "stylesheet", "type": "text/css"})
+            _lnk = etree.SubElement(head, 'link', {"href": _link.get('href', ''), "rel": "stylesheet", "type": "text/css"})
 
         body = etree.SubElement(root, 'body')
         nav = etree.SubElement(body, 'nav', {'{%s}type' % NAMESPACES['EPUB']: 'toc', 'id': 'id'})
@@ -795,7 +1072,11 @@ class EpubWriter(object):
                 if isinstance(item, tuple) or isinstance(item, list):
                     li = etree.SubElement(ol, 'li')
                     if isinstance(item[0], EpubHtml):
-                        a = etree.SubElement(li, 'a', {'href': item[0].file_name})
+                        a = etree.SubElement(li, 'a', {'href': os.path.relpath(item[0].file_name, nav_dir_name)})
+                    elif isinstance(item[0], Section) and item[0].href != '':
+                        a = etree.SubElement(li, 'a', {'href': os.path.relpath(item[0].href, nav_dir_name)})
+                    elif isinstance(item[0], Link):
+                        a = etree.SubElement(li, 'a', {'href': os.path.relpath(item[0].href, nav_dir_name)})
                     else:
                         a = etree.SubElement(li, 'span')
                     a.text = self._get_toc_title(item[0])
@@ -804,12 +1085,12 @@ class EpubWriter(object):
 
                 elif isinstance(item, Link):
                     li = etree.SubElement(ol, 'li')
-                    a = etree.SubElement(li, 'a', {'href': item.href})
-                    a.text = self._get_toc_title(item)
+                    a = etree.SubElement(li, 'a', {'href': os.path.relpath(item.href, nav_dir_name)})
+                    a.text = item.title
                 elif isinstance(item, EpubHtml):
                     li = etree.SubElement(ol, 'li')
-                    a = etree.SubElement(li, 'a', {'href': item.file_name})
-                    a.text = self._get_toc_title(item)
+                    a = etree.SubElement(li, 'a', {'href': os.path.relpath(item.file_name, nav_dir_name)})
+                    a.text = item.title
 
         _create_section(nav, self.book.toc)
 
@@ -824,7 +1105,7 @@ class EpubWriter(object):
                 'text': 'bodymatter'
             }
 
-            guide_nav  = etree.SubElement(body, 'nav',  {'{%s}type' % NAMESPACES['EPUB']: 'landmarks'})
+            guide_nav = etree.SubElement(body, 'nav', {'{%s}type' % NAMESPACES['EPUB']: 'landmarks'})
 
             guide_content_title = etree.SubElement(guide_nav, 'h2')
             guide_content_title.text = self.options.get('landmark_title', 'Guide')
@@ -844,7 +1125,7 @@ class EpubWriter(object):
                     _title = elem.get('title', '')
 
                 guide_type = elem.get('type', '')
-                a_item = etree.SubElement(li_item, 'a', {'{%s}type' % NAMESPACES['EPUB']: guide_to_landscape_map.get(guide_type, guide_type), 'href': _href})
+                a_item = etree.SubElement(li_item, 'a', {'{%s}type' % NAMESPACES['EPUB']: guide_to_landscape_map.get(guide_type, guide_type), 'href': os.path.relpath(_href, nav_dir_name)})
                 a_item.text = _title
 
         tree_str = etree.tostring(root, pretty_print=True, encoding='utf-8', xml_declaration=True)
@@ -891,11 +1172,17 @@ class EpubWriter(object):
                     nt.text = self._get_toc_title(section)
 
                     # CAN NOT HAVE EMPTY SRC HERE
-                    nc = etree.SubElement(np, 'content', {'src': section.file_name if isinstance(section, EpubHtml) else ''})
+                    href = ''
+                    if isinstance(section, EpubHtml):
+                        href = section.file_name
+                    elif isinstance(section, Section) and section.href != '':
+                        href = section.href
+                    elif isinstance(section, Link):
+                        href = section.href
 
-                    #uid += 1
-                    uid = _create_section(np, subsection, uid+1)
+                    nc = etree.SubElement(np, 'content', {'src': href})
 
+                    uid = _create_section(np, subsection, uid + 1)
                 elif isinstance(item, Link):
                     _parent = itm
                     _content = _parent.find('content')
@@ -910,7 +1197,6 @@ class EpubWriter(object):
                     nt.text = self._get_toc_title(item)
 
                     nc = etree.SubElement(np, 'content', {'src': item.href})
-
                 elif isinstance(item, EpubHtml):
                     _parent = itm
                     _content = _parent.find('content')
@@ -956,12 +1242,11 @@ class EpubWriter(object):
 
         self.out.close()
 
-###########################################################################################################
 
 class EpubReader(object):
     DEFAULT_OPTIONS = {}
 
-    def __init__(self, epub_file_name, options = None):
+    def __init__(self, epub_file_name, options=None):
         self.file_name = epub_file_name
         self.book = EpubBook()
         self.zf = None
@@ -998,7 +1283,7 @@ class EpubReader(object):
         meta_inf = self.read_file('META-INF/container.xml')
         tree = parse_string(meta_inf)
 
-        for root_file in tree.findall('//xmlns:rootfile[@media-type]', namespaces = {'xmlns': NAMESPACES['CONTAINERNS']}):
+        for root_file in tree.findall('//xmlns:rootfile[@media-type]', namespaces={'xmlns': NAMESPACES['CONTAINERNS']}):
             if root_file.get('media-type') == "application/oebps-package+xml":
                 self.opf_file = root_file.get('full-path')
                 self.opf_dir = zip_path.dirname(self.opf_file)
@@ -1094,7 +1379,7 @@ class EpubReader(object):
                 elif 'cover' in properties:
                     ei = EpubCoverHtml()
 
-                    ei.content = self.read_file(os_path.join(self.opf_dir,  unquote(r.get('href'))))
+                    ei.content = self.read_file(os_path.join(self.opf_dir, unquote(r.get('href'))))
                 else:
                     ei = EpubHtml()
 
@@ -1129,9 +1414,8 @@ class EpubReader(object):
 
             self.book.add_item(ei)
 
-
     def _parse_ncx(self, data):
-        tree = parse_string(data);
+        tree = parse_string(data)
         tree_root = tree.getroot()
 
         nav_map = tree_root.find('{%s}navMap' % NAMESPACES['DAISY'])
@@ -1142,25 +1426,23 @@ class EpubReader(object):
             _id = ''
 
             for a in elems.getchildren():
-                if a.tag == '{%s}navLabel' %  NAMESPACES['DAISY']:
+                if a.tag == '{%s}navLabel' % NAMESPACES['DAISY']:
                     label = a.getchildren()[0].text
-                if a.tag == '{%s}content' %  NAMESPACES['DAISY']:
-                        content = a.get('src')
-                if a.tag == '{%s}navPoint' %  NAMESPACES['DAISY']:
-                    children.append(_get_children(a, n+1, a.get('id', '')))
+                if a.tag == '{%s}content' % NAMESPACES['DAISY']:
+                    content = a.get('src', '')
+                if a.tag == '{%s}navPoint' % NAMESPACES['DAISY']:
+                    children.append(_get_children(a, n + 1, a.get('id', '')))
 
             if len(children) > 0:
                 if n == 0:
                     return children
 
-                return (Section(label),
+                return (Section(label, href=content),
                         children)
             else:
                 return (Link(content, label, nid))
 
-
         self.book.toc = _get_children(nav_map, 0, '')
-
 
     def _parse_nav(self, data, base_path):
         html_node = parse_html_string(data)
@@ -1172,24 +1454,26 @@ class EpubReader(object):
             for item_node in list_node.findall("li"):
 
                 sublist_node = item_node.find("ol")
-                link_node    = item_node.find("a")
+                link_node = item_node.find("a")
 
                 if sublist_node is not None:
-                    title    = item_node[0].text
+                    title = item_node[0].text
                     children = parse_list(sublist_node)
 
-                    items.append((Section(title), children))
-
+                    if link_node is not None:
+                        href = zip_path.normpath(zip_path.join(base_path, link_node.get("href")))
+                        items.append((Section(title, href=href), children))
+                    else:
+                        items.append((Section(title), children))
                 elif link_node is not None:
                     title = link_node.text
-                    href  = zip_path.normpath(zip_path.join(base_path, link_node.get("href")))
+                    href = zip_path.normpath(zip_path.join(base_path, link_node.get("href")))
 
                     items.append(Link(href, title))
 
             return items
 
         self.book.toc = parse_list(nav_node.find("ol"))
-
 
     def _load_spine(self):
         spine = self.container.find('{%s}%s' % (NAMESPACES['OPF'], 'spine'))
@@ -1207,12 +1491,10 @@ class EpubReader(object):
 
             self._parse_ncx(ncxFile)
 
-
     def _load_guide(self):
         guide = self.container.find('{%s}%s' % (NAMESPACES['OPF'], 'guide'))
         if guide is not None:
             self.book.guide = [{'href': t.get('href'), 'title': t.get('title'), 'type': t.get('type')} for t in guide]
-
 
     def _load_opf_file(self):
         try:
@@ -1234,10 +1516,9 @@ class EpubReader(object):
             if nav_item:
                 self._parse_nav(nav_item.content, zip_path.dirname(nav_item.file_name))
 
-
     def _load(self):
         try:
-            self.zf = zipfile.ZipFile(self.file_name, 'r', compression = zipfile.ZIP_DEFLATED, allowZip64 = True)
+            self.zf = zipfile.ZipFile(self.file_name, 'r', compression=zipfile.ZIP_DEFLATED, allowZip64=True)
         except zipfile.BadZipfile as bz:
             raise EpubException(0, 'Bad Zip file')
         except zipfile.LargeZipFile as bz:
@@ -1250,9 +1531,19 @@ class EpubReader(object):
         self.zf.close()
 
 
-## WRITE
+# WRITE
 
-def write_epub(name, book, options = None):
+def write_epub(name, book, options=None):
+    """
+    Creates epub file with the content defined in EpubBook.
+
+    >>> ebooklib.write_epub('book.epub', book)
+
+    :Args:
+      - name: file name for the output file
+      - book: instance of EpubBook
+      - options: extra opions as dictionary (optional)
+    """
     epub = EpubWriter(name, book, options)
 
     epub.process()
@@ -1262,13 +1553,25 @@ def write_epub(name, book, options = None):
     except IOError:
         pass
 
-## READ
+# READ
 
-def read_epub(name, options = None):
+
+def read_epub(name, options=None):
+    """
+    Creates new instance of EpubBook with the content defined in the input file.
+
+    >>> book = ebooklib.read_epub('book.epub')
+
+    :Args:
+      - name: full path to the input file
+      - options: extra options as dictionary (optional)
+
+    :Returns:
+      Instance of EpubBook.
+    """
     reader = EpubReader(name, options)
 
     book = reader.load()
     reader.process()
 
     return book
-
