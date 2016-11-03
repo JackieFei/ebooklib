@@ -968,13 +968,18 @@ class EpubWriter(object):
             # later we should be able to fetch things from tuple
 
             is_linear = True
+            itemref_properties = None
 
             if isinstance(_item, tuple):
+                # 2016/11/03 _item 的內容依序是 (idref, linear, properties)
                 item = _item[0]
 
                 if len(_item) > 1:
                     if _item[1] == 'no':
                         is_linear = False
+                    # 2016/11/03 保存 itemref properties
+                    if _item[2]:
+                        itemref_properties = _item[2]
             else:
                 item = _item
 
@@ -1001,6 +1006,12 @@ class EpubWriter(object):
 
             if hasattr(item, 'itemref_properties') and len(item.itemref_properties) > 0:
                 opts['properties'] = ' '.join(item.itemref_properties)
+
+            # 2016/11/03 還原 itemref 的所有屬性
+            if itemref_properties:
+                if not hasattr(opts, 'properties'):
+                    opts['properties'] = ''
+                opts['properties'] += itemref_properties
 
             etree.SubElement(spine, 'itemref', opts)
 
@@ -1478,7 +1489,18 @@ class EpubReader(object):
     def _load_spine(self):
         spine = self.container.find('{%s}%s' % (NAMESPACES['OPF'], 'spine'))
 
-        self.book.spine = [(t.get('idref'), t.get('linear', 'yes')) for t in spine]
+        # 2016/11/03 保存 spine 的所有屬性
+        propsExtra = {}
+        # spine 是個 lxml.etree._Element 物件
+        for key in spine.keys():
+            if (key not in ['toc']):
+                # 'toc' 被另外處理
+                propsExtra.update({key: spine.get(key)})
+        if len(propsExtra):
+            self.book.spine_properties = propsExtra
+
+        # 2016/11/03 多加保存 itemref properties
+        self.book.spine = [(t.get('idref'), t.get('linear', 'yes'), t.get('properties', None)) for t in spine]
 
         toc = spine.get('toc', '')
 
