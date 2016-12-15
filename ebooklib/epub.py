@@ -958,7 +958,15 @@ class EpubWriter(object):
                 etree.SubElement(manifest, 'item', opts)
 
         # SPINE
-        opts = {'toc': _ncx_id or 'ncx'}
+        # 2016/12/15 epub 2.0 才需要強制指定 spine toc 屬性
+        # http://www.idpf.org/epub/30/spec/epub30-publications.html#ncx-superseded
+        if self.book.version.startswith("2") :
+          opts = {'toc': _ncx_id or 'ncx'}
+        elif _ncx_id :
+          opts = {'toc': _ncx_id}
+        else :
+          opts = {}
+
         if hasattr(self.book, 'spine_properties') :
             opts.update(self.book.spine_properties)
         spine = etree.SubElement(root, 'spine', opts)
