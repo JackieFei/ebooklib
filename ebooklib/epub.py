@@ -1110,7 +1110,8 @@ class EpubWriter(object):
                 elif isinstance(item, EpubHtml):
                     li = etree.SubElement(ol, 'li')
                     a = etree.SubElement(li, 'a', {'href': os.path.relpath(item.file_name, nav_dir_name)})
-                    a.text = item.title
+                    # 2016/12/21 確保（無子目錄的 TOC）取得正確的標題文字
+                    a.text = self._get_toc_title(item)
 
         _create_section(nav, self.book.toc)
 
