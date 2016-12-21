@@ -960,7 +960,8 @@ class EpubWriter(object):
         # SPINE
         # 2016/12/15 epub 2.0 才需要強制指定 spine toc 屬性
         # http://www.idpf.org/epub/30/spec/epub30-publications.html#ncx-superseded
-        if self.book.version.startswith("2") :
+        # 2016/12/21 保護新書還沒有 epub version 的狀態
+        if hasattr(self.book, 'version') and self.book.version.startswith("2") :
           opts = {'toc': _ncx_id or 'ncx'}
         elif _ncx_id :
           opts = {'toc': _ncx_id}
