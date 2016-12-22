@@ -1106,7 +1106,8 @@ class EpubWriter(object):
                 elif isinstance(item, Link):
                     li = etree.SubElement(ol, 'li')
                     a = etree.SubElement(li, 'a', {'href': os.path.relpath(item.href, nav_dir_name)})
-                    a.text = item.title
+                    # 2016/12/22 補回 Merge Master 造成的程式遺失 (@2016/11/03)
+                    a.text = self._get_toc_title(item)
                 elif isinstance(item, EpubHtml):
                     li = etree.SubElement(ol, 'li')
                     a = etree.SubElement(li, 'a', {'href': os.path.relpath(item.file_name, nav_dir_name)})
