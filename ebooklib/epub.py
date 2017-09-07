@@ -975,7 +975,7 @@ class EpubWriter(object):
         # 2016/12/21 保護新書還沒有 epub version 的狀態
         if hasattr(self.book, 'version') and self.book.version.startswith("2") :
             spine_attributes = {'toc': ncx_id or 'ncx'}
-        elif _ncx_id :
+        elif ncx_id :
             spine_attributes = {'toc': ncx_id}
         else :
             spine_attributes = {}
@@ -1146,7 +1146,7 @@ class EpubWriter(object):
                         a = etree.SubElement(li, 'a', {'href': os.path.relpath(item[0].href, nav_dir_name)})
                     else:
                         a = etree.SubElement(li, 'span')
-                    a.text = self._get_toc_title(item[0])
+                    a.text = item[0].title
 
                     _create_section(li, item[1])
 
@@ -1243,7 +1243,7 @@ class EpubWriter(object):
                     })
                     nl = etree.SubElement(np, 'navLabel')
                     nt = etree.SubElement(nl, 'text')
-                    nt.text = self._get_toc_title(section)
+                    nt.text = section.title
 
                     # CAN NOT HAVE EMPTY SRC HERE
                     href = ''
@@ -1268,7 +1268,7 @@ class EpubWriter(object):
                     np = etree.SubElement(itm, 'navPoint', {'id': _gen_navPoint_uid(item.uid)})
                     nl = etree.SubElement(np, 'navLabel')
                     nt = etree.SubElement(nl, 'text')
-                    nt.text = self._get_toc_title(item)
+                    nt.text = item.title
 
                     nc = etree.SubElement(np, 'content', {'src': item.href})
                 elif isinstance(item, EpubHtml):
@@ -1282,7 +1282,7 @@ class EpubWriter(object):
                     np = etree.SubElement(itm, 'navPoint', {'id': _gen_navPoint_uid(item.get_id())})
                     nl = etree.SubElement(np, 'navLabel')
                     nt = etree.SubElement(nl, 'text')
-                    nt.text = self._get_toc_title(item)
+                    nt.text = item.title
 
                     nc = etree.SubElement(np, 'content', {'src': item.file_name})
 
