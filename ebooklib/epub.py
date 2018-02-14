@@ -251,6 +251,8 @@ class EpubHtml(EpubItem):
 
         self.links = []
         self.item_properties = []
+        # 2018/02/13 提供 item 屬性的傳遞
+        self.item_attributes = []
         self.itemref_properties = []
 
     def is_chapter(self):
@@ -970,6 +972,13 @@ class EpubWriter(object):
                 # rendition 的屬性只能設在 spine/itemref，不能設在 manifest/item。所以程式應該分離 item.properties 為二種
                 if hasattr(item, 'item_properties') and len(item.item_properties) > 0:
                     opts['properties'] = ' '.join(item.item_properties)
+
+                # 2018/02/13 提供 item 屬性的傳遞
+                if hasattr(item, 'item_attributes') and len(item.item_attributes) > 0:
+                    # item_attributes 預期是陣列
+                    for attr in item.item_attributes :
+                        # attr 預期是 [key, value]
+                        opts[attr[0]] = attr[1]
 
                 etree.SubElement(manifest, 'item', opts)
 
