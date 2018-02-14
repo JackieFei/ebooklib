@@ -36,7 +36,9 @@ from ebooklib.utils import parse_string, parse_html_string, guess_type
 
 
 # Version of EPUB library
-VERSION = (0, 15, 0)
+# 2018/02/14 此處使用 ebooklib.VERSION，版號才會對應 __init__.py
+VERSION = ebooklib.VERSION
+# VERSION = (0, 15, 0)
 
 NAMESPACES = {'XML': 'http://www.w3.org/XML/1998/namespace',
               'EPUB': 'http://www.idpf.org/2007/ops',
