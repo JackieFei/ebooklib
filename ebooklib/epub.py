@@ -716,6 +716,7 @@ class EpubBook(object):
         """
         if item.media_type == '':
             (has_guessed, media_type) = guess_type(item.get_name().lower())
+            print ('  has_guessed =', has_guessed, ', media_type =', media_type)
 
             if has_guessed:
                 if media_type is not None:
