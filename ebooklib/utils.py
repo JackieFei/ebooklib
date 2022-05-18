@@ -57,10 +57,10 @@ def guess_type(extenstion):
         mimetypes.add_type('application/xhtml+xml', '.xhtml')
         mimetype_initialised = True
 
-    print ('ebooklib/utils guess_type extenstion =', extenstion)
+    # print ('ebooklib/utils guess_type extenstion =', extenstion)
     # 2022/05/18 這種寫法可以在 AWS Lambda 成功執行
     #   [ERROR] AttributeError: module 'urllib3.packages.six.moves.urllib_parse' has no attribute '_splittype'
     #     File "/var/lang/lib/python3.8/mimetypes.py", line 117, in guess_type
     #       scheme, url = urllib.parse._splittype(url)
-    return mimetypes.MimeTypes().guess_type(extenstion)
-    # return mimetypes.guess_type(extenstion)
+    # return mimetypes.MimeTypes().guess_type(extenstion)
+    return mimetypes.guess_type(extenstion)
